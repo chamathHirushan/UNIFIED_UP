@@ -18,7 +18,7 @@ model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
 dataset = load_dataset("hotpotqa/hotpot_qa", "distractor")
 
 train_ds = dataset["train"]
-df = train_ds.to_pandas()
+df = train_ds.to_pandas().sample(n=20000, random_state=42)
 
 def stringify_context(context_json):
     """
