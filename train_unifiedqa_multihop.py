@@ -69,7 +69,7 @@ dataset = dataset.train_test_split(test_size=0.1)
 train_dataset = dataset["train"]
 val_dataset = dataset["test"]
 
-tokenized_train = dataset.map(preprocess)
+tokenized_train = train_dataset.map(preprocess)
 tokenized_val = val_dataset.map(preprocess)
 
 training_args = Seq2SeqTrainingArguments(
