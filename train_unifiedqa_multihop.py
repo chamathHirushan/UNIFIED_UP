@@ -126,13 +126,15 @@ def preprocess(example):
     model_inputs = tokenizer(
         new_input,
         truncation=True,
-        padding=True
+        padding="max_length",
+        max_length=512,
     )
 
     labels = tokenizer(
         example["target_text"],
         truncation=True,
-        padding=True
+        padding="max_length",
+        max_length=128,
     )
 
     model_inputs["labels"] = labels["input_ids"]
