@@ -104,7 +104,8 @@ import pandas as pd
 def normalize_answer(s):
     """Lower text, remove punctuation, articles, extra whitespace, normalize numbers."""
     def remove_articles(text):
-        return re.sub(r'\b(a|an|the)\b', ' ', text)
+        cleaned = re.sub(r'\s(?=\S)', '', text)
+        return re.sub(r'\b(a|an|the)\b', ' ', cleaned)
     def white_space_fix(text):
         return ' '.join(text.split())
     def remove_punc(text):
