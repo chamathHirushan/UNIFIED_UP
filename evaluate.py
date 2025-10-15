@@ -142,7 +142,7 @@ def load_tsv(name):
         print(f"File not found: {path}")
         return None
 
-data=["data_boolq_test","data_arc_easy_test","data_arc_hard_test","data_commonsenseqa_test","data_squad2_test","hotpot_text"]
+data=["data_boolq_test","data_arc_easy_test","data_arc_hard_test","data_commonsenseqa_test","data_squad2_test","hotpot_test"]
 
 """# Evaluate UNIFIEDQA_MH"""
 
