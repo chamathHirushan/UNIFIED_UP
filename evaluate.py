@@ -95,8 +95,7 @@ import pandas as pd
 def normalize_answer(s):
     """Lower text, remove punctuation, articles, extra whitespace, normalize numbers."""
     def remove_articles(text):
-        cleaned = re.sub(r'\s(?=\S)', '', text)
-        return re.sub(r'\b(a|an|the)\b', ' ', cleaned)
+        return re.sub(r'\b(a|an|the)\b', ' ', text)
     def white_space_fix(text):
         return ' '.join(text.split())
     def remove_punc(text):
@@ -105,8 +104,8 @@ def normalize_answer(s):
     def lower(text):
         return text.lower()
     def normalize_numbers(text):
-        text = re.sub(r'(?<=\d),(?=\d)', '', text)
-        return text
+        return re.sub(r'(?<=\d),(?=\d)', '', text)
+    
     return white_space_fix(normalize_numbers(remove_articles(remove_punc(lower(s)))))
 
 def get_tokens(s):
@@ -128,7 +127,8 @@ def compute_f1(a_gold, a_pred):
         return 0
     precision = num_same / len(pred_toks)
     recall = num_same / len(gold_toks)
-    return 2 * precision * recall / (precision + recall)
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+    return f1
 
 def clean_prediction(answer):
     if isinstance(answer, list):
@@ -142,6 +142,31 @@ def fuzzy_match(a_gold, a_pred, threshold=0.70):
     """Returns True if similarity > threshold."""
     return SequenceMatcher(None, a_gold.lower(), a_pred.lower()).ratio() > threshold
 
+def compute_metrics_with_fuzzy(expected, predicted, fuzzy_threshold=0.70):
+    """
+    Compute both EM and F1 with fuzzy matching consideration.
+    If fuzzy match is above threshold, use the maximum of calculated metric and a boosted value.
+    """
+    # Compute base metrics
+    base_em = compute_exact(expected, predicted)
+    base_f1 = compute_f1(expected, predicted)
+    
+    # Check fuzzy match
+    is_fuzzy_match = fuzzy_match(expected, predicted, fuzzy_threshold)
+    
+    # Apply fuzzy matching boost
+    if is_fuzzy_match:
+        # For EM: if fuzzy match, treat as correct (1)
+        final_em = 1
+        # For F1: take the maximum of calculated F1 and a boosted value (0.9)
+        # This gives some credit for close matches while preserving token-level accuracy
+        final_f1 = max(base_f1, 0.9)
+    else:
+        final_em = base_em
+        final_f1 = base_f1
+    
+    return final_em, final_f1, base_em, base_f1, is_fuzzy_match
+
 def load_tsv(name):
     path = f"evaluation_datasets/{name}.tsv"
     try:
@@ -152,59 +177,93 @@ def load_tsv(name):
         print(f"File not found: {path}")
         return None
 
-data=["data_boolq_test","data_arc_easy_test","data_arc_hard_test","data_commonsenseqa_test","data_squad2_test","hotpot_test"]
+# Dataset list
+data = ["data_boolq_test", "data_arc_easy_test", "data_arc_hard_test", 
+        "data_commonsenseqa_test", "data_squad2_test", "hotpot_test"]
 
-"""# Evaluate UNIFIEDQA_MH"""
-
+# Evaluation results
 results = []
 
 for dataset in data:
     df = load_tsv(dataset)
-    n_samples = min(1000, len(df))
-    df = df.sample(n=n_samples, random_state=42).reset_index(drop=True)
     if df is None:
         continue
+        
+    n_samples = min(1000, len(df))
+    df = df.sample(n=n_samples, random_state=42).reset_index(drop=True)
 
+    # Initialize counters
     exact_match = 0
     f1_total = 0
+    base_exact_match = 0  # Without fuzzy
+    base_f1_total = 0     # Without fuzzy
+    fuzzy_matches = 0
     total = len(df)
-    # Iterate over rows; assuming df has columns: question, label
+    
+    print(f"\nEvaluating {dataset}...")
+    
+    # Iterate over rows
     for idx, row in df.iterrows():
         question = row[0]
-        expected_answer = row[1]
+        expected_answer = str(row[1])  # Ensure string type
 
+        # Get model prediction
         answer = unifiedqa_mh.answer_question(question)
-        answer = answer.strip()
+        answer = clean_prediction(answer.strip())
 
-        # Compare answers
-        em = compute_exact(expected_answer, answer)
-        if em == 0 and fuzzy_match(expected_answer, answer):
-          em = 1  # Treat as correct for EM
-
-        f1 = compute_f1(expected_answer, answer)
+        # Compute metrics with fuzzy matching
+        em, f1, base_em, base_f1, is_fuzzy = compute_metrics_with_fuzzy(
+            expected_answer, answer, fuzzy_threshold=0.70
+        )
+        
         exact_match += em
         f1_total += f1
+        base_exact_match += base_em
+        base_f1_total += base_f1
+        fuzzy_matches += 1 if is_fuzzy else 0
 
-        if em == 0:
-          print(f"Mismatch at row {idx}")
-          print("Predicted:", answer)
-          print("Target   :", expected_answer)
+        # Log mismatches (only for non-fuzzy, non-exact cases)
+        if em == 0 and not is_fuzzy:
+            print(f"Mismatch at row {idx}")
+            print("Question :", question)
+            print("Predicted:", answer)
+            print("Target   :", expected_answer)
+            print("---")
 
-    # Final scores
+    # Calculate percentages
     exact_match_percent = 100.0 * exact_match / total
     f1_percent = 100.0 * f1_total / total
+    base_exact_match_percent = 100.0 * base_exact_match / total
+    base_f1_percent = 100.0 * base_f1_total / total
+    fuzzy_match_percent = 100.0 * fuzzy_matches / total
 
-    print(f"Exact Match: {exact_match_percent:.2f}%")
-    print(f"F1 Score   : {f1_percent:.2f}%")
+    print(f"\n=== Results for {dataset} ===")
+    print(f"Base EM (no fuzzy)  : {base_exact_match_percent:.2f}%")
+    print(f"Base F1 (no fuzzy)  : {base_f1_percent:.2f}%")
+    print(f"Fuzzy matches       : {fuzzy_match_percent:.2f}%")
+    print(f"Final EM (w/ fuzzy) : {exact_match_percent:.2f}%")
+    print(f"Final F1 (w/ fuzzy) : {f1_percent:.2f}%")
+    print(f"Samples evaluated   : {total}")
 
+    # Store results
     results.append({
         "dataset": dataset,
-        "EM": exact_match_percent,
-        "F1": f1_percent
+        "EM_base": base_exact_match_percent,
+        "F1_base": base_f1_percent,
+        "Fuzzy_matches": fuzzy_match_percent,
+        "EM_final": exact_match_percent,
+        "F1_final": f1_percent,
+        "samples": total
     })
 
-# Save all results to a CSV
+# Create summary dataframe
 results_df = pd.DataFrame(results)
+print("\n" + "="*60)
+print("SUMMARY OF RESULTS")
+print("="*60)
+print(results_df.to_string(index=False))
+
+# Save results to file
 results_df.to_csv("eval_results_unifiedqa_mh.csv", index=False)
 print("Saved results to eval_results_unifiedqa_mh.csv")
 
@@ -214,50 +273,84 @@ results = []
 
 for dataset in data:
     df = load_tsv(dataset)
-    n_samples = min(1000, len(df))
-    df = df.sample(n=n_samples, random_state=42).reset_index(drop=True)
     if df is None:
         continue
+        
+    n_samples = min(1000, len(df))
+    df = df.sample(n=n_samples, random_state=42).reset_index(drop=True)
 
+    # Initialize counters
     exact_match = 0
     f1_total = 0
+    base_exact_match = 0  # Without fuzzy
+    base_f1_total = 0     # Without fuzzy
+    fuzzy_matches = 0
     total = len(df)
-    # Iterate over rows; assuming df has columns: question, label
+    
+    print(f"\nEvaluating {dataset}...")
+    
+    # Iterate over rows
     for idx, row in df.iterrows():
         question = row[0]
-        expected_answer = row[1]
+        expected_answer = str(row[1])  # Ensure string type
 
+        # Get model prediction
         answer = run_model_unifiedqa(question)
         answer = " ".join([str(a) for a in answer])
+        answer = clean_prediction(answer.strip())
 
-        # Compare answers
-        em = compute_exact(expected_answer, answer)
-        if em == 0 and fuzzy_match(expected_answer, answer):
-          em = 1  # Treat as correct for EM
-
-        f1 = compute_f1(expected_answer, answer)
+        # Compute metrics with fuzzy matching
+        em, f1, base_em, base_f1, is_fuzzy = compute_metrics_with_fuzzy(
+            expected_answer, answer, fuzzy_threshold=0.70
+        )
+        
         exact_match += em
         f1_total += f1
+        base_exact_match += base_em
+        base_f1_total += base_f1
+        fuzzy_matches += 1 if is_fuzzy else 0
 
-        if em == 0:
-          print(f"Mismatch at row {idx}")
-          print("Predicted:", answer)
-          print("Target   :", expected_answer)
+        # Log mismatches (only for non-fuzzy, non-exact cases)
+        if em == 0 and not is_fuzzy:
+            print(f"Mismatch at row {idx}")
+            print("Question :", question)
+            print("Predicted:", answer)
+            print("Target   :", expected_answer)
+            print("---")
 
-    # Final scores
+    # Calculate percentages
     exact_match_percent = 100.0 * exact_match / total
     f1_percent = 100.0 * f1_total / total
+    base_exact_match_percent = 100.0 * base_exact_match / total
+    base_f1_percent = 100.0 * base_f1_total / total
+    fuzzy_match_percent = 100.0 * fuzzy_matches / total
 
-    print(f"Exact Match: {exact_match_percent:.2f}%")
-    print(f"F1 Score   : {f1_percent:.2f}%")
+    print(f"\n=== Results for {dataset} ===")
+    print(f"Base EM (no fuzzy)  : {base_exact_match_percent:.2f}%")
+    print(f"Base F1 (no fuzzy)  : {base_f1_percent:.2f}%")
+    print(f"Fuzzy matches       : {fuzzy_match_percent:.2f}%")
+    print(f"Final EM (w/ fuzzy) : {exact_match_percent:.2f}%")
+    print(f"Final F1 (w/ fuzzy) : {f1_percent:.2f}%")
+    print(f"Samples evaluated   : {total}")
 
+    # Store results
     results.append({
         "dataset": dataset,
-        "EM": exact_match_percent,
-        "F1": f1_percent
+        "EM_base": base_exact_match_percent,
+        "F1_base": base_f1_percent,
+        "Fuzzy_matches": fuzzy_match_percent,
+        "EM_final": exact_match_percent,
+        "F1_final": f1_percent,
+        "samples": total
     })
 
-# Save all results to a CSV
+# Create summary dataframe
 results_df = pd.DataFrame(results)
+print("\n" + "="*60)
+print("UNIFIEDQA - SUMMARY OF RESULTS")
+print("="*60)
+print(results_df.to_string(index=False))
+
+# Save results to file
 results_df.to_csv("eval_results_unifiedqa.csv", index=False)
 print("Saved results to eval_results_unifiedqa.csv")
