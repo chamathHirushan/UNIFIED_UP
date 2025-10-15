@@ -174,7 +174,7 @@ for dataset in data:
         expected_answer = row[1]
 
         answer = unifiedqa_mh.answer_question(question)
-        answer = " ".join([str(a) for a in answer])
+        answer = answer.strip()
 
         # Compare answers
         em = compute_exact(expected_answer, answer)
