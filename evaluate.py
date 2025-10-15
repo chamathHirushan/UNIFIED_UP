@@ -60,25 +60,16 @@ class UnifiedQAWithRetrieval:
         retrieved_context = self.retrieve_relevant_chunk(question, context)
         final_input = question + " \n " + retrieved_context
 
-        device = self.model.device 
         inputs = self.tokenizer(final_input, return_tensors="pt", truncation=True, padding=True)
-        inputs = {k: v.to(device) for k, v in inputs.items()}
-
         output_ids = self.model.generate(**inputs, **generate_kwargs)
-        decoded = self.tokenizer.decode(
-            output_ids[0], 
-            skip_special_tokens=True, 
-            clean_up_tokenization_spaces=True
-        )
-        cleaned = re.sub(r'\s(?=\S)', '', decoded)
-        return cleaned
+        return self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
 
 
 # Load the QA system
 with open("unifiedqa_with_retrieval.pkl", "rb") as f:
     unifiedqa_mh = pickle.load(f)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    unifiedqa_mh.model = unifiedqa_mh.model.to(device)
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # unifiedqa_mh.model = unifiedqa_mh.model.to(device)
 
 """# Load UNIFIEDQA"""
 
@@ -86,7 +77,7 @@ unifiedqa_model_id = "allenai/unifiedqa-t5-small"
 unifiedqa_tokenizer = AutoTokenizer.from_pretrained(unifiedqa_model_id)
 unifiedqa_model = AutoModelForSeq2SeqLM.from_pretrained(unifiedqa_model_id)
 
-unifiedqa_model = unifiedqa_model.to(device)
+# unifiedqa_model = unifiedqa_model.to(device)
 
 def run_model_unifiedqa(input_string, **generator_args):
     input_ids = unifiedqa_tokenizer.encode(input_string, return_tensors="pt")
