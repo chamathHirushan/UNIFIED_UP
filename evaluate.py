@@ -65,7 +65,13 @@ class UnifiedQAWithRetrieval:
         inputs = {k: v.to(device) for k, v in inputs.items()}
 
         output_ids = self.model.generate(**inputs, **generate_kwargs)
-        return self.tokenizer.decode(output_ids[0], skip_special_tokens=True, clean_up_tokenization_spaces=True)
+        decoded = self.tokenizer.decode(
+            output_ids[0], 
+            skip_special_tokens=True, 
+            clean_up_tokenization_spaces=True
+        )
+        cleaned = re.sub(r'\s(?=\S)', '', decoded)
+        return cleaned
 
 
 # Load the QA system
