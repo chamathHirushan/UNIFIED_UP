@@ -231,7 +231,10 @@ class UnifiedQAWithRetrieval:
         retrieved_context = self.retrieve_relevant_chunk(question, context)
         final_input = question + " \n " + retrieved_context
 
+        device = self.model.device 
         inputs = self.tokenizer(final_input, return_tensors="pt", truncation=True, padding=True)
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+
         output_ids = self.model.generate(**inputs, **generate_kwargs)
         return self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
 
