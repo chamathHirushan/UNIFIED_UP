@@ -133,7 +133,7 @@ def fuzzy_match(a_gold, a_pred, threshold=0.70):
     return SequenceMatcher(None, a_gold.lower(), a_pred.lower()).ratio() > threshold
 
 def load_tsv(name):
-    path = f"/evaluation_datasets/{name}.tsv"
+    path = f"evaluation_datasets/{name}.tsv"
     try:
         df = pd.read_csv(path, sep="\t", header=None)
         print(f"Loaded {name}.tsv with shape {df.shape}")
