@@ -68,14 +68,15 @@ def run_model(input_string, **generator_args):
 import re
 
 def extract_after_first_newline(text: str):
-        parts = text.split("\n", 1)
-        question = parts[0].strip()
-        if len(parts) > 1:
-            context = parts[1].strip() 
-        else:
-            context = ""
-            print("Text does not contain a newline character.", text)
-        return question, context
+    text = text.replace("\\n", "\n")
+    parts = text.split("\n", 1)
+    question = parts[0].strip()
+    if len(parts) > 1:
+        context = parts[1].strip() 
+    else:
+        context = ""
+        print("Text does not contain a newline character.", text)
+    return question, context
 
 from sklearn.model_selection import train_test_split
 
@@ -194,6 +195,7 @@ class UnifiedQAWithRetrieval:
 
     @staticmethod
     def extract_after_first_newline(text: str):
+        text = text.replace("\\n", "\n")
         parts = text.split("\n", 1)
         question = parts[0].strip()
         if len(parts) > 1:

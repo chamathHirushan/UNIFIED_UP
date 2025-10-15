@@ -22,6 +22,7 @@ class UnifiedQAWithRetrieval:
 
     @staticmethod
     def extract_after_first_newline(text: str):
+        text = text.replace("\\n", "\n")
         parts = text.split("\n", 1)
         question = parts[0].strip()
         if len(parts) > 1:
