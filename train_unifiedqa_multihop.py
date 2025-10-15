@@ -81,8 +81,8 @@ val_df, test_df = train_test_split(
 train_dataset = Dataset.from_pandas(preprocessed_df_train)
 val_dataset = Dataset.from_pandas(val_df)
 
-test_df.to_csv("test_data.tsv", sep="\t", index=False)
-print("Saved test_df to test_data.tsv")
+test_df.to_csv("evaluation_datasets/hotpot_test.tsv", sep="\t", index=False)
+print("Saved test_df to evaluation_datasets/hotpot_test.tsv")
 
 """**Retrievals**"""
 
