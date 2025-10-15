@@ -207,6 +207,8 @@ class UnifiedQAWithRetrieval:
 
     def retrieve_relevant_chunk(self, question, context, max_tokens=500):
         paragraphs = [p.strip() for p in context.split("\n") if p.strip()]
+        if not paragraphs:
+            return ""
         paragraph_embeddings = self.embed_model.encode(paragraphs, convert_to_tensor=True)
         question_embedding = self.embed_model.encode(question, convert_to_tensor=True)
 
